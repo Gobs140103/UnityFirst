@@ -1,241 +1,199 @@
-To create an NLP-enabled chatbot that can perform multiple queries on DynamoDB, you can leverage libraries like `transformers` for NLP capabilities along with `boto3` for DynamoDB interactions. Here's a step-by-step guide to achieve this:
+Creating a chatbot using Rasa that can run queries on DynamoDB to give users specific information involves several steps. Below is a detailed guide from setting up the environment to creating a working chatbot that can handle queries like fetching the last 5 transactions of a particular user.
 
 ### Prerequisites
 
-1. **Python installed**: Ensure Python is installed on your machine.
-2. **AWS account**: You need an AWS account to use DynamoDB.
-3. **AWS CLI**: Install and configure the AWS CLI with your AWS credentials.
-4. **Required libraries**: Install the necessary Python libraries.
+1. **Python** installed (3.7 or higher).
+2. **AWS account** with DynamoDB setup.
+3. **AWS CLI** configured with appropriate permissions.
+4. **Rasa** installed.
+5. **Boto3** library for AWS DynamoDB integration.
 
-### Step 1: Install Required Packages
+### Step-by-Step Guide
 
-Install the required packages using pip:
+#### 1. **Setting Up the Environment**
 
-```bash
-pip install boto3 transformers
+1. **Install Rasa**:
+   ```bash
+   pip install rasa
+   ```
+
+2. **Install Boto3**:
+   ```bash
+   pip install boto3
+   ```
+
+3. **Create a new Rasa project**:
+   ```bash
+   rasa init
+   ```
+
+#### 2. **Define Your NLU Data**
+
+Edit `data/nlu.yml` to include intents for querying transactions:
+```yaml
+version: "3.1"
+
+nlu:
+- intent: greet
+  examples: |
+    - hello
+    - hi
+    - hey
+
+- intent: goodbye
+  examples: |
+    - bye
+    - goodbye
+
+- intent: get_last_transactions
+  examples: |
+    - show me the last 5 transactions
+    - get the latest transactions
+    - what are my recent transactions
 ```
 
-### Step 2: Set Up DynamoDB
+#### 3. **Define Your Domain**
 
-1. **Create a DynamoDB table**:
-   - Go to the AWS Management Console.
-   - Navigate to DynamoDB and create a table named `UserTransactions` with `user_id` as the partition key and `transaction_id` as the sort key.
+Edit `domain.yml` to define the entities, slots, and responses:
+```yaml
+version: "3.1"
 
-2. **Insert sample transactions**:
+intents:
+  - greet
+  - goodbye
+  - get_last_transactions
 
-    ```bash
-    aws dynamodb put-item --table-name UserTransactions --item '{"user_id": {"S": "1"}, "transaction_id": {"N": "1"}, "amount": {"N": "100"}, "description": {"S": "Transaction 1"}}'
-    aws dynamodb put-item --table-name UserTransactions --item '{"user_id": {"S": "1"}, "transaction_id": {"N": "2"}, "amount": {"N": "200"}, "description": {"S": "Transaction 2"}}'
-    aws dynamodb put-item --table-name UserTransactions --item '{"user_id": {"S": "1"}, "transaction_id": {"N": "3"}, "amount": {"N": "300"}, "description": {"S": "Transaction 3"}}'
-    aws dynamodb put-item --table-name UserTransactions --item '{"user_id": {"S": "1"}, "transaction_id": {"N": "4"}, "amount": {"N": "400"}, "description": {"S": "Transaction 4"}}'
-    aws dynamodb put-item --table-name UserTransactions --item '{"user_id": {"S": "1"}, "transaction_id": {"N": "5"}, "amount": {"N": "500"}, "description": {"S": "Transaction 5"}}'
-    aws dynamodb put-item --table-name UserTransactions --item '{"user_id": {"S": "1"}, "transaction_id": {"N": "6"}, "amount": {"N": "600"}, "description": {"S": "Transaction 6"}}'
-    ```
+entities:
+  - user_id
 
-### Step 3: Create the Chatbot Script
+slots:
+  user_id:
+    type: text
 
-Create a Python script named `nlp_transaction_chatbot.py` in your project directory.
+responses:
+  utter_greet:
+    - text: "Hello! How can I assist you today?"
 
-### Step 4: Initialize DynamoDB and Define Query Functions
+  utter_goodbye:
+    - text: "Goodbye!"
 
-Add the necessary code to initialize DynamoDB and set up functions for querying the database and using NLP for query understanding.
+  utter_ask_user_id:
+    - text: "Please provide your user ID."
 
-1. **Initialize DynamoDB and Transformers**:
+  utter_show_transactions:
+    - text: "Here are your last 5 transactions: {transactions}"
+```
 
-    ```python
-    import boto3
-    from boto3.dynamodb.conditions import Key
-    from transformers import pipeline
+#### 4. **Define Your Stories**
 
-    # Initialize DynamoDB client
-    dynamodb = boto3.resource('dynamodb')
-    table = dynamodb.Table('UserTransactions')
+Edit `data/stories.yml` to define how conversations should flow:
+```yaml
+version: "3.1"
 
-    # Initialize the NLP model
-    nlp = pipeline('question-answering', model='distilbert-base-uncased-distilled-squad')
-    ```
+stories:
+- story: greet path
+  steps:
+    - intent: greet
+    - action: utter_greet
 
-2. **Define Query Functions**:
+- story: goodbye path
+  steps:
+    - intent: goodbye
+    - action: utter_goodbye
 
-    ```python
-    def query_last_transactions(user_id, limit=5):
-        try:
-            response = table.query(
-                KeyConditionExpression=Key('user_id').eq(user_id),
-                ScanIndexForward=False,  # Get the latest transactions
-                Limit=limit
-            )
-            items = response.get('Items')
-            if items:
-                return items
-            else:
-                return "No transactions found for user."
-        except Exception as e:
-            return str(e)
+- story: get transactions path
+  steps:
+    - intent: get_last_transactions
+    - action: action_get_last_transactions
+```
 
-    def format_transactions(transactions):
-        if isinstance(transactions, str):
-            return transactions
-        formatted = "\n".join([f"Transaction ID: {t['transaction_id']} | Amount: {t['amount']} | Description: {t['description']}" for t in transactions])
-        return formatted
-    ```
+#### 5. **Create Custom Actions**
 
-3. **Define the NLP-enabled Query Handler**:
-
-    ```python
-    def handle_query(user_query):
-        if "last transactions" in user_query.lower():
-            user_id = extract_user_id(user_query)
-            if user_id:
-                transactions = query_last_transactions(user_id)
-                return format_transactions(transactions)
-            else:
-                return "User ID not found in query."
-        else:
-            return "Sorry, I can only provide the last transactions."
-
-    def extract_user_id(query):
-        # Simple extraction of user ID from the query using a keyword approach.
-        # You can make this more robust with actual NLP techniques.
-        import re
-        match = re.search(r'\buser (\d+)\b', query)
-        if match:
-            return match.group(1)
-        return None
-    ```
-
-4. **Define the Main Function**:
-
-    ```python
-    def main():
-        print("Welcome to the NLP-enabled User Transactions Chatbot!")
-        while True:
-            user_query = input("You: ")
-            if user_query.lower() in ["exit", "quit"]:
-                break
-            response = handle_query(user_query)
-            print("Chatbot:", response)
-
-    if __name__ == "__main__":
-        main()
-    ```
-
-### Complete Script: `nlp_transaction_chatbot.py`
-
+Edit `actions/actions.py` to define custom actions to query DynamoDB:
 ```python
 import boto3
-from boto3.dynamodb.conditions import Key
-from transformers import pipeline
-import re
+from typing import Any, Text, Dict, List
+from rasa_sdk import Action, Tracker
+from rasa_sdk.executor import CollectingDispatcher
 
 # Initialize DynamoDB client
-dynamodb = boto3.resource('dynamodb')
-table = dynamodb.Table('UserTransactions')
+dynamodb = boto3.client('dynamodb', region_name='us-east-1')
 
-# Initialize the NLP model
-nlp = pipeline('question-answering', model='distilbert-base-uncased-distilled-squad')
+class ActionGetLastTransactions(Action):
 
-def query_last_transactions(user_id, limit=5):
-    try:
-        response = table.query(
-            KeyConditionExpression=Key('user_id').eq(user_id),
-            ScanIndexForward=False,  # Get the latest transactions
-            Limit=limit
+    def name(self) -> Text:
+        return "action_get_last_transactions"
+
+    def run(self, dispatcher: CollectingDispatcher, tracker: Tracker, domain: Dict[Text, Any]) -> List[Dict[Text, Any]]:
+        user_id = tracker.get_slot('user_id')
+        
+        if not user_id:
+            dispatcher.utter_message(text="I need your user ID to fetch transactions.")
+            return []
+
+        # Query DynamoDB to get the last 5 transactions
+        response = dynamodb.query(
+            TableName='TransactionsTable',
+            KeyConditionExpression='user_id = :uid',
+            ExpressionAttributeValues={':uid': {'S': user_id}},
+            Limit=5,
+            ScanIndexForward=False  # Get the most recent transactions
         )
-        items = response.get('Items')
-        if items:
-            return items
-        else:
-            return "No transactions found for user."
-    except Exception as e:
-        return str(e)
 
-def format_transactions(transactions):
-    if isinstance(transactions, str):
-        return transactions
-    formatted = "\n".join([f"Transaction ID: {t['transaction_id']} | Amount: {t['amount']} | Description: {t['description']}" for t in transactions])
-    return formatted
+        transactions = response.get('Items', [])
+        transactions_list = [t['transaction_id']['S'] for t in transactions]
 
-def handle_query(user_query):
-    if "last transactions" in user_query.lower():
-        user_id = extract_user_id(user_query)
-        if user_id:
-            transactions = query_last_transactions(user_id)
-            return format_transactions(transactions)
-        else:
-            return "User ID not found in query."
-    else:
-        return "Sorry, I can only provide the last transactions."
-
-def extract_user_id(query):
-    # Simple extraction of user ID from the query using a keyword approach.
-    match = re.search(r'\buser (\d+)\b', query)
-    if match:
-        return match.group(1)
-    return None
-
-def main():
-    print("Welcome to the NLP-enabled User Transactions Chatbot!")
-    while True:
-        user_query = input("You: ")
-        if user_query.lower() in ["exit", "quit"]:
-            break
-        response = handle_query(user_query)
-        print("Chatbot:", response)
-
-if __name__ == "__main__":
-    main()
-```
-
-### Running the Chatbot
-
-1. **Run the script**:
-
-    ```bash
-    python nlp_transaction_chatbot.py
-    ```
-
-### Sample Interaction
-
-**Input:**
+        dispatcher.utter_message(text=f"Here are your last 5 transactions: {transactions_list}")
+        return []
 
 ```
-You: What are the last transactions of user 1?
+
+#### 6. **Update Your Endpoint Configuration**
+
+Edit `endpoints.yml` to enable custom actions:
+```yaml
+action_endpoint:
+  url: "http://localhost:5055/webhook"
 ```
 
-**Expected Output:**
+#### 7. **Run the Action Server**
 
-```
-Chatbot: 
-Transaction ID: 6 | Amount: 600 | Description: Transaction 6
-Transaction ID: 5 | Amount: 500 | Description: Transaction 5
-Transaction ID: 4 | Amount: 400 | Description: Transaction 4
-Transaction ID: 3 | Amount: 300 | Description: Transaction 3
-Transaction ID: 2 | Amount: 200 | Description: Transaction 2
+In a separate terminal, start the action server:
+```bash
+rasa run actions
 ```
 
-**Input:**
+#### 8. **Train the Model**
 
-```
-You: Show me the last transactions of user 2.
-```
-
-**Expected Output:**
-
-```
-Chatbot: No transactions found for user.
+Train your Rasa model:
+```bash
+rasa train
 ```
 
-### Explanation
+#### 9. **Run the Rasa Server**
 
-1. **NLP Integration**: The chatbot uses the `transformers` library to integrate NLP capabilities. The `pipeline` function initializes a pre-trained model for question-answering.
+Start your Rasa server:
+```bash
+rasa run
+```
 
-2. **Query Handling**: The `handle_query` function interprets the user's input to determine if it requests the last transactions and extracts the user ID.
+#### 10. **Test Your Chatbot**
 
-3. **User ID Extraction**: The `extract_user_id` function uses regular expressions to find a user ID in the query string.
+Interact with your chatbot using Rasa Shell:
+```bash
+rasa shell
+```
 
-4. **Querying DynamoDB**: The `query_last_transactions` function retrieves the last transactions for the specified user from DynamoDB.
+You can now test the conversation flow:
+```
+User: hi
+Bot: Hello! How can I assist you today?
+User: show me the last 5 transactions
+Bot: I need your user ID to fetch transactions.
+User: my user ID is 12345
+Bot: Here are your last 5 transactions: [...]
+```
 
-5. **Formatting Results**: The `format_transactions` function formats the retrieved transactions into a readable string format.
+### Conclusion
 
-This setup allows the chatbot to handle multiple queries, extract relevant information using NLP, and perform the necessary DynamoDB operations to provide the requested data.
+This is a basic implementation of a Rasa chatbot that interacts with DynamoDB to fetch and display the last 5 transactions for a user. You can extend this model by adding more intents, entities, and custom actions as needed for your application.
