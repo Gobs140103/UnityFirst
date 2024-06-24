@@ -1,215 +1,118 @@
+To extend the chatbot to handle queries for the last 5 transactions of a specific user, you will need to modify your DynamoDB table structure and your Python script accordingly.
 
-To link the frontend (React) with the backend (Spring Boot), you need to configure the frontend to make HTTP requests to the backend endpoints for login and registration. Here’s how you can set this up:
+### Step 1: Modify DynamoDB Table Structure
 
-### Step-by-Step Process
+First, create a table that can store user transactions. Let's name it `UserTransactions` with `user_id` as the partition key and `transaction_id` as the sort key. This allows you to store multiple transactions per user and query them in order.
 
-#### 1. Setup CORS in Spring Boot
+1. **Create the DynamoDB table**:
 
-To allow your React frontend to communicate with your Spring Boot backend, you need to configure CORS (Cross-Origin Resource Sharing).
+    - Go to the AWS Management Console.
+    - Navigate to DynamoDB.
+    - Create a table named `UserTransactions` with:
+        - `user_id` as the partition key (string).
+        - `transaction_id` as the sort key (number).
 
-Add the following CORS configuration in your Spring Boot application:
+2. **Insert sample transactions**:
 
-```java
-package com.example.demo.config;
+    You can use the AWS CLI to insert sample transactions. Here is an example:
 
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.web.servlet.config.annotation.CorsRegistry;
-import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+    ```bash
+    aws dynamodb put-item --table-name UserTransactions --item '{"user_id": {"S": "1"}, "transaction_id": {"N": "1"}, "amount": {"N": "100"}, "description": {"S": "Transaction 1"}}'
+    aws dynamodb put-item --table-name UserTransactions --item '{"user_id": {"S": "1"}, "transaction_id": {"N": "2"}, "amount": {"N": "200"}, "description": {"S": "Transaction 2"}}'
+    aws dynamodb put-item --table-name UserTransactions --item '{"user_id": {"S": "1"}, "transaction_id": {"N": "3"}, "amount": {"N": "300"}, "description": {"S": "Transaction 3"}}'
+    aws dynamodb put-item --table-name UserTransactions --item '{"user_id": {"S": "1"}, "transaction_id": {"N": "4"}, "amount": {"N": "400"}, "description": {"S": "Transaction 4"}}'
+    aws dynamodb put-item --table-name UserTransactions --item '{"user_id": {"S": "1"}, "transaction_id": {"N": "5"}, "amount": {"N": "500"}, "description": {"S": "Transaction 5"}}'
+    aws dynamodb put-item --table-name UserTransactions --item '{"user_id": {"S": "1"}, "transaction_id": {"N": "6"}, "amount": {"N": "600"}, "description": {"S": "Transaction 6"}}'
+    ```
 
-@Configuration
-public class WebConfig {
+### Step 2: Update the Chatbot Script
 
-    @Bean
-    public WebMvcConfigurer corsConfigurer() {
-        return new WebMvcConfigurer() {
-            @Override
-            public void addCorsMappings(CorsRegistry registry) {
-                registry.addMapping("/**")
-                        .allowedOrigins("http://localhost:3000")
-                        .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
-                        .allowedHeaders("*")
-                        .allowCredentials(true);
-            }
-        };
-    }
-}
+Modify the Python script to handle queries for the last 5 transactions of a user.
+
+1. **Create a new Python script `transaction_chatbot.py`**:
+
+    ```python
+    import boto3
+    from boto3.dynamodb.conditions import Key
+
+    # Initialize DynamoDB client
+    dynamodb = boto3.resource('dynamodb')
+    table = dynamodb.Table('UserTransactions')
+
+    def query_last_transactions(user_id, limit=5):
+        try:
+            response = table.query(
+                KeyConditionExpression=Key('user_id').eq(user_id),
+                ScanIndexForward=False,  # Get the latest transactions
+                Limit=limit
+            )
+            items = response.get('Items')
+            if items:
+                return items
+            else:
+                return "No transactions found for user."
+        except Exception as e:
+            return str(e)
+
+    def format_transactions(transactions):
+        if isinstance(transactions, str):
+            return transactions
+        formatted = "\n".join([f"Transaction ID: {t['transaction_id']} | Amount: {t['amount']} | Description: {t['description']}" for t in transactions])
+        return formatted
+
+    def get_response(user_query):
+        user_id = user_query.strip()
+        transactions = query_last_transactions(user_id)
+        return format_transactions(transactions)
+
+    def main():
+        print("Welcome to the User Transactions Chatbot!")
+        while True:
+            user_query = input("You (enter user_id): ")
+            if user_query.lower() in ["exit", "quit"]:
+                break
+            response = get_response(user_query)
+            print("Chatbot:", response)
+
+    if __name__ == "__main__":
+        main()
+    ```
+
+### Running the Chatbot
+
+1. **Run the script**:
+
+    ```bash
+    python transaction_chatbot.py
+    ```
+
+### Sample Interaction
+
+**Input:**
+
+```
+You (enter user_id): 1
 ```
 
-This configuration allows the React app (running on `http://localhost:3000`) to make requests to the Spring Boot backend.
+**Expected Output:**
 
-#### 2. Set Up Axios in React
-
-Install Axios in your React project for making HTTP requests:
-
-```sh
-npm install axios
+```
+Chatbot: 
+Transaction ID: 6 | Amount: 600 | Description: Transaction 6
+Transaction ID: 5 | Amount: 500 | Description: Transaction 5
+Transaction ID: 4 | Amount: 400 | Description: Transaction 4
+Transaction ID: 3 | Amount: 300 | Description: Transaction 3
+Transaction ID: 2 | Amount: 200 | Description: Transaction 2
 ```
 
-#### 3. Create Service for API Calls
+### Explanation
 
-Create a new directory `src/services` and a file `AuthService.js` to handle API calls:
+1. **query_last_transactions**: This function queries the `UserTransactions` table for the latest transactions of a user, limited to a specified number (default is 5).
 
-```javascript
-// src/services/AuthService.js
+2. **format_transactions**: This function formats the retrieved transactions into a readable string format.
 
-import axios from 'axios';
+3. **get_response**: This function handles the user query by retrieving and formatting the last transactions.
 
-const API_URL = 'http://localhost:8080/api/auth/';
+4. **main**: This function runs the chatbot, accepting user IDs as input and displaying the last transactions for the given user ID.
 
-class AuthService {
-    login(username, password) {
-        return axios.post(API_URL + 'login', { username, password });
-    }
-
-    register(username, email, password) {
-        return axios.post(API_URL + 'register', { username, email, password });
-    }
-}
-
-export default new AuthService();
-```
-
-#### 4. Implement Login and Registration Components
-
-Here’s an example of how you can implement the login and registration components using React:
-
-**Login Component:**
-
-```javascript
-// src/components/Login.js
-
-import React, { useState } from 'react';
-import AuthService from '../services/AuthService';
-
-function Login() {
-    const [username, setUsername] = useState('');
-    const [password, setPassword] = useState('');
-    const [message, setMessage] = useState('');
-
-    const handleLogin = async (e) => {
-        e.preventDefault();
-        try {
-            await AuthService.login(username, password);
-            setMessage('Login successful!');
-        } catch (error) {
-            setMessage('Login failed!');
-        }
-    };
-
-    return (
-        <div>
-            <h2>Login</h2>
-            <form onSubmit={handleLogin}>
-                <div>
-                    <label>Username:</label>
-                    <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} />
-                </div>
-                <div>
-                    <label>Password:</label>
-                    <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
-                </div>
-                <button type="submit">Login</button>
-            </form>
-            {message && <p>{message}</p>}
-        </div>
-    );
-}
-
-export default Login;
-```
-
-**Register Component:**
-
-```javascript
-// src/components/Register.js
-
-import React, { useState } from 'react';
-import AuthService from '../services/AuthService';
-
-function Register() {
-    const [username, setUsername] = useState('');
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const [message, setMessage] = useState('');
-
-    const handleRegister = async (e) => {
-        e.preventDefault();
-        try {
-            await AuthService.register(username, email, password);
-            setMessage('Registration successful!');
-        } catch (error) {
-            setMessage('Registration failed!');
-        }
-    };
-
-    return (
-        <div>
-            <h2>Register</h2>
-            <form onSubmit={handleRegister}>
-                <div>
-                    <label>Username:</label>
-                    <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} />
-                </div>
-                <div>
-                    <label>Email:</label>
-                    <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-                </div>
-                <div>
-                    <label>Password:</label>
-                    <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
-                </div>
-                <button type="submit">Register</button>
-            </form>
-            {message && <p>{message}</p>}
-        </div>
-    );
-}
-
-export default Register;
-```
-
-#### 5. Integrate Components in Your App
-
-In your main `App.js` file, integrate the login and registration components:
-
-```javascript
-// src/App.js
-
-import React from 'react';
-import { BrowserRouter as Router, Route, Switch } from 'react-router-dom';
-import Login from './components/Login';
-import Register from './components/Register';
-
-function App() {
-    return (
-        <Router>
-            <div>
-                <Switch>
-                    <Route exact path="/" component={Login} />
-                    <Route path="/login" component={Login} />
-                    <Route path="/register" component={Register} />
-                </Switch>
-            </div>
-        </Router>
-    );
-}
-
-export default App;
-```
-
-#### 6. Ensure React Router is Installed
-
-If you haven't installed React Router, do so with:
-
-```sh
-npm install react-router-dom
-```
-
-### Summary
-
-- **Backend (Spring Boot):** Ensure CORS is configured to allow requests from the frontend.
-- **Frontend (React):** Use Axios for making HTTP requests and React Router for navigation.
-- **Linking:** Use Axios in React components to make requests to the backend API endpoints.
-
-Now, when you run both the backend and frontend, you should be able to register and login users, with the frontend making API calls to the backend.
+With this setup, you can now query the chatbot for the last 5 transactions of any user by entering their user ID.
