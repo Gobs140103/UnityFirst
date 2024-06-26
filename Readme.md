@@ -197,3 +197,5 @@ Bot: Here are your last 5 transactions: [...]
 ### Conclusion
 
 This is a basic implementation of a Rasa chatbot that interacts with DynamoDB to fetch and display the last 5 transactions for a user. You can extend this model by adding more intents, entities, and custom actions as needed for your application.
+
+sk-tlngWE7Bg9ibsrrrU1qNT3BlbkFJNXwAXmLoBxyFHQTcw
