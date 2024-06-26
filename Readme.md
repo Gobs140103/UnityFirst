@@ -1,4 +1,4 @@
-Creating a chatbot using Rasa that can run queries on DynamoDB to give users specific information involves several steps. Below is a detailed guide from setting up the environment to creating a working chatbot that can handle queries like fetching the last 5 transactions of a particular user.
+Creating a chatbot using Rasa that can run queries on DynamoDB to give users specific information involves several steps. Below is a detailed guide from setting up the environment to creating a working chatbot that can handle queries like fetching the last 5 transactions of a particular user.rpy
 
 ### Prerequisites
 
