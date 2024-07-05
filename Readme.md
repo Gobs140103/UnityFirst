@@ -1,121 +1,132 @@
-For extracting numbers and tables with high accuracy, especially from structured documents like invoices, receipts, or forms, you might want to consider using specialized OCR solutions. Here are some advanced options:
+To improve the accuracy of PaddleOCR using fine-tuning with LabelImg, you'll need to follow these detailed steps:
 
-### 1. **AWS Textract**
-Amazon Textract is a machine learning service that automatically extracts text, handwriting, and data from scanned documents. It can also recognize forms and tables.
+### Step 1: Collect and Annotate Data
 
-**Installation:**
-```bash
-pip install boto3
+1. **Install LabelImg**
+
+   ```bash
+   pip install labelImg
+   ```
+
+   Alternatively, you can clone the repository and run it directly.
+
+   ```bash
+   git clone https://github.com/tzutalin/labelImg.git
+   cd labelImg
+   python labelImg.py
+   ```
+
+2. **Annotate Images**
+
+   - Open LabelImg.
+   - Load the directory containing your images.
+   - Select "Create RectBox" and draw bounding boxes around the text areas in your images.
+   - Label each bounding box with the corresponding text.
+   - Save the annotations in Pascal VOC format (XML files).
+
+### Step 2: Prepare Data for PaddleOCR
+
+Convert the annotated data into the format required by PaddleOCR. PaddleOCR typically expects a dataset directory structure and annotation format that looks like this:
+
+```
+dataset/
+    train_images/
+        image1.jpg
+        image2.jpg
+        ...
+    train_labels/
+        image1.txt
+        image2.txt
+        ...
+    test_images/
+    test_labels/
 ```
 
-**Usage:**
+Each `.txt` file should contain annotations in the following format:
+
+```
+x1,y1,x2,y2,x3,y3,x4,y4,text
+```
+
+where `(x1, y1)`, `(x2, y2)`, `(x3, y3)`, and `(x4, y4)` are the coordinates of the bounding box, and `text` is the annotated text.
+
+### Step 3: Convert XML to TXT
+
+You need to write a script to convert the Pascal VOC XML annotations from LabelImg into the format required by PaddleOCR.
+
 ```python
-import boto3
+import os
+import xml.etree.ElementTree as ET
 
-def analyze_document(document_path):
-    with open(document_path, 'rb') as document:
-        imageBytes = bytearray(document.read())
-
-    client = boto3.client('textract')
-
-    response = client.analyze_document(
-        Document={'Bytes': imageBytes},
-        FeatureTypes=['TABLES', 'FORMS']
-    )
-
-    for block in response['Blocks']:
-        if block['BlockType'] == 'TABLE':
-            print("Table detected:")
-            for relationship in block.get('Relationships', []):
-                if relationship['Type'] == 'CHILD':
-                    for child_id in relationship['Ids']:
-                        child = next(item for item in response['Blocks'] if item['Id'] == child_id)
-                        print(f"Detected text: {child['Text']}")
-
-document_path = 'path_to_your_document.jpg'
-analyze_document(document_path)
-```
-
-### 2. **Google Cloud Vision**
-Google Cloud Vision API is a powerful tool for detecting text in images, including handwriting, printed text, and structured data like tables.
-
-**Installation:**
-```bash
-pip install google-cloud-vision
-```
-
-**Usage:**
-```python
-from google.cloud import vision
-import io
-
-def detect_document_text(image_path):
-    client = vision.ImageAnnotatorClient()
-
-    with io.open(image_path, 'rb') as image_file:
-        content = image_file.read()
-
-    image = vision.Image(content=content)
-    response = client.document_text_detection(image=image)
-    document = response.full_text_annotation
-
-    for page in document.pages:
-        for block in page.blocks:
-            for paragraph in block.paragraphs:
-                for word in paragraph.words:
-                    word_text = ''.join([symbol.text for symbol in word.symbols])
-                    print(f'Word text: {word_text}')
-
-image_path = 'path_to_your_image.jpg'
-detect_document_text(image_path)
-```
-
-### 3. **Microsoft Azure Cognitive Services**
-Azure's Computer Vision API provides advanced OCR capabilities, including structured data extraction from forms and tables.
-
-**Installation:**
-```bash
-pip install azure-cognitiveservices-vision-computervision
-```
-
-**Usage:**
-```python
-from azure.cognitiveservices.vision.computervision import ComputerVisionClient
-from azure.cognitiveservices.vision.computervision.models import OperationStatusCodes
-from msrest.authentication import CognitiveServicesCredentials
-import time
-
-def azure_ocr(image_path):
-    subscription_key = "your_subscription_key"
-    endpoint = "your_endpoint"
+def convert_voc_to_txt(xml_file, txt_file):
+    tree = ET.parse(xml_file)
+    root = tree.getroot()
     
-    client = ComputerVisionClient(endpoint, CognitiveServicesCredentials(subscription_key))
+    with open(txt_file, 'w') as f:
+        for obj in root.findall('object'):
+            name = obj.find('name').text
+            bbox = obj.find('bndbox')
+            x1 = bbox.find('xmin').text
+            y1 = bbox.find('ymin').text
+            x2 = bbox.find('xmax').text
+            y2 = bbox.find('ymin').text
+            x3 = bbox.find('xmax').text
+            y3 = bbox.find('ymax').text
+            x4 = bbox.find('xmin').text
+            y4 = bbox.find('ymax').text
+            f.write(f'{x1},{y1},{x2},{y2},{x3},{y3},{x4},{y4},{name}\n')
 
-    with open(image_path, "rb") as image_stream:
-        read_response = client.read_in_stream(image_stream, raw=True)
+def process_annotations(annotations_dir, output_dir):
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
     
-    read_operation_location = read_response.headers["Operation-Location"]
-    operation_id = read_operation_location.split("/")[-1]
-    
-    while True:
-        read_result = client.get_read_result(operation_id)
-        if read_result.status not in [OperationStatusCodes.running, OperationStatusCodes.not_started]:
-            break
-        time.sleep(1)
-    
-    if read_result.status == OperationStatusCodes.succeeded:
-        for text_result in read_result.analyze_result.read_results:
-            for line in text_result.lines:
-                print(f"Detected text: {line.text}")
+    for xml_file in os.listdir(annotations_dir):
+        if xml_file.endswith('.xml'):
+            base_name = os.path.splitext(xml_file)[0]
+            txt_file = os.path.join(output_dir, base_name + '.txt')
+            convert_voc_to_txt(os.path.join(annotations_dir, xml_file), txt_file)
 
-image_path = 'path_to_your_image.jpg'
-azure_ocr(image_path)
+annotations_dir = 'path_to_your_xml_annotations'
+output_dir = 'path_to_your_txt_labels'
+process_annotations(annotations_dir, output_dir)
 ```
+
+### Step 4: Train the Model with PaddleOCR
+
+1. **Install PaddleOCR and PaddlePaddle**
+
+   ```bash
+   pip install paddlepaddle paddleocr
+   ```
+
+2. **Prepare Configuration File**
+
+   Modify the configuration file (e.g., `rec_mv3_none_bilstm_ctc.yml`) to point to your dataset. Make sure the paths to your training and validation data are correctly set.
+
+3. **Training Command**
+
+   Run the training command with your configuration file.
+
+   ```bash
+   python tools/train.py -c configs/rec/rec_mv3_none_bilstm_ctc.yml
+   ```
+
+### Step 5: Evaluate and Fine-tune
+
+1. **Evaluate the Model**
+
+   After training, evaluate the model on your validation dataset to check its performance. You may need to adjust the training parameters or preprocessing steps based on the results.
+
+2. **Fine-tune the Model**
+
+   Fine-tune the model by adjusting the learning rate, batch size, or other hyperparameters to improve accuracy.
 
 ### Summary
 
-1. **AWS Textract**: Specialized in extracting text, forms, and tables from scanned documents.
-2. **Google Cloud Vision**: Advanced text detection, including handwriting and structured data.
-3. **Microsoft Azure Cognitive Services**: Provides robust OCR capabilities with structured data extraction.
+1. **Install and Annotate with LabelImg**: Install LabelImg and annotate your images.
+2. **Convert Annotations**: Convert Pascal VOC XML annotations to the format required by PaddleOCR.
+3. **Prepare Dataset**: Organize your dataset and prepare it for training.
+4. **Train the Model**: Use PaddleOCR to train the model with your annotated data.
+5. **Evaluate and Fine-tune**: Evaluate the model and fine-tune it for better accuracy.
 
-These cloud-based solutions typically offer the highest accuracy and can handle complex documents with numbers and tables effectively. They require setting up API keys and endpoints but provide powerful capabilities beyond local libraries.
+By following these steps, you can fine-tune PaddleOCR with your specific dataset, improving its accuracy for your particular use case.
