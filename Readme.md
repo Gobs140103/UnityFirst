@@ -1,3 +1,90 @@
+If you want to use PaddleOCR without cloning the entire repository and instead rely on installing via pip and customizing configurations, you can follow these steps:
+
+### Using PaddleOCR via pip
+
+1. **Install PaddleOCR**
+
+   First, install PaddleOCR via pip. This will install the necessary packages to use PaddleOCR without cloning the repository:
+
+   ```bash
+   pip install paddleocr
+   ```
+
+2. **Download Pretrained Models**
+
+   You can download pretrained models directly using the `paddleocr.download` module. For example, to download the `ch` (Chinese) model:
+
+   ```bash
+   python -m paddleocr.download -o ./pretrain_models/ch
+   ```
+
+   Replace `./pretrain_models/ch` with the directory where you want to save the pretrained model files.
+
+3. **Create and Modify Configuration**
+
+   You can create a custom configuration file (`my_config.yml`) based on the default configurations available in the PaddleOCR repository. Here’s an example of a minimal configuration:
+
+   ```yaml
+   Global:
+     Architecture: 'MobileNetV3'
+     LossType: 'CTCLoss'
+     ModelType: 'RecModel'
+     EPOCH_NUM: 300
+     PRETRAINED_MODEL_DIR: './pretrain_models'
+
+   Architecture:
+     Model: 'MobileNetV3_large'
+     Head: 'EAST'
+
+   Optimizer:
+     LearningRate:
+       Base: 0.0003
+       Scheduler: 'linear'
+       Decay:
+         EPOCH_NUM: 300
+         Rate: 0.8
+       Parameters:
+         weight_decay: 5.0e-05
+         grad_clip: 5.0
+
+   TrainDataset:
+     ImageShape: [3, 32, 320]
+     Mean: [127.5, 127.5, 127.5]
+     Std: [127.5, 127.5, 127.5]
+     Dataset:
+       TrainDataLoader:
+         batch_size: 32
+         num_workers: 4
+       EvalDataLoader:
+         batch_size: 32
+         num_workers: 4
+
+   Train:
+     CheckpointDir: './output/my_model'
+     EvalIntervalEpoch: 10
+     PrintBatchInterval: 20
+     SaveIntervalEpoch: 10
+     TrainDataDir: './train_data'
+
+   Test:
+     TestBatchSize: 32
+     TestDataDir: './test_data'
+   ```
+
+   Customize the above configuration according to your specific requirements, such as adjusting paths, batch sizes, and other parameters.
+
+4. **Training**
+
+   You can then train the model using the `train.py` script provided by PaddleOCR, specifying your custom configuration file:
+
+   ```bash
+   python -m paddleocr.tools.train -c my_config.yml
+   ```
+
+### Summary
+
+Using PaddleOCR via pip allows you to install and configure the OCR toolkit without cloning the entire repository. You can download pretrained models, create custom configurations, and train OCR models according to your specific needs. This approach simplifies setup and customization while leveraging the capabilities of PaddleOCR for text recognition tasks.
+
 To improve the accuracy of PaddleOCR using fine-tuning with LabelImg, you'll need to follow these detailed steps:
 
 ### Step 1: Collect and Annotate Data
