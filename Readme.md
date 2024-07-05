@@ -1,116 +1,121 @@
-For achieving the highest accuracy in OCR, you might consider using advanced, state-of-the-art models and frameworks beyond the standard pip-installable libraries. Some of the most powerful OCR tools currently include Google Vision API, AWS Textract, and Microsoft Azure OCR. However, if you want to stick with pip-installable libraries, you can explore models like PaddleOCR or advanced deep learning-based solutions such as using CRNN (Convolutional Recurrent Neural Network) with pre-trained weights.
+For extracting numbers and tables with high accuracy, especially from structured documents like invoices, receipts, or forms, you might want to consider using specialized OCR solutions. Here are some advanced options:
 
-### Using PaddleOCR
+### 1. **AWS Textract**
+Amazon Textract is a machine learning service that automatically extracts text, handwriting, and data from scanned documents. It can also recognize forms and tables.
 
-PaddleOCR is a powerful and efficient OCR tool developed by Baidu. It supports multilingual text recognition and provides higher accuracy for various OCR tasks.
-
-#### Installation
-
-Install PaddleOCR and PaddlePaddle:
-
+**Installation:**
 ```bash
-pip install paddlepaddle paddleocr
+pip install boto3
 ```
 
-#### Usage
-
-Here's how to use PaddleOCR:
-
+**Usage:**
 ```python
-from paddleocr import PaddleOCR, draw_ocr
-import cv2
-from matplotlib import pyplot as plt
+import boto3
 
-def perform_paddleocr(image_path):
-    ocr = PaddleOCR(use_angle_cls=True, lang='en')
-    result = ocr.ocr(image_path, cls=True)
+def analyze_document(document_path):
+    with open(document_path, 'rb') as document:
+        imageBytes = bytearray(document.read())
 
-    image = cv2.imread(image_path)
-    boxes = [line[0] for line in result[0]]
-    txts = [line[1][0] for line in result[0]]
-    scores = [line[1][1] for line in result[0]]
+    client = boto3.client('textract')
 
-    for (box, text, score) in zip(boxes, txts, scores):
-        print(f'Text: {text}, Score: {score}')
+    response = client.analyze_document(
+        Document={'Bytes': imageBytes},
+        FeatureTypes=['TABLES', 'FORMS']
+    )
 
-    # Draw results
-    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    im_show = draw_ocr(image, boxes, txts, scores, font_path='path_to_your_font.ttf')
-    plt.imshow(im_show)
-    plt.axis('off')
-    plt.show()
+    for block in response['Blocks']:
+        if block['BlockType'] == 'TABLE':
+            print("Table detected:")
+            for relationship in block.get('Relationships', []):
+                if relationship['Type'] == 'CHILD':
+                    for child_id in relationship['Ids']:
+                        child = next(item for item in response['Blocks'] if item['Id'] == child_id)
+                        print(f"Detected text: {child['Text']}")
+
+document_path = 'path_to_your_document.jpg'
+analyze_document(document_path)
+```
+
+### 2. **Google Cloud Vision**
+Google Cloud Vision API is a powerful tool for detecting text in images, including handwriting, printed text, and structured data like tables.
+
+**Installation:**
+```bash
+pip install google-cloud-vision
+```
+
+**Usage:**
+```python
+from google.cloud import vision
+import io
+
+def detect_document_text(image_path):
+    client = vision.ImageAnnotatorClient()
+
+    with io.open(image_path, 'rb') as image_file:
+        content = image_file.read()
+
+    image = vision.Image(content=content)
+    response = client.document_text_detection(image=image)
+    document = response.full_text_annotation
+
+    for page in document.pages:
+        for block in page.blocks:
+            for paragraph in block.paragraphs:
+                for word in paragraph.words:
+                    word_text = ''.join([symbol.text for symbol in word.symbols])
+                    print(f'Word text: {word_text}')
 
 image_path = 'path_to_your_image.jpg'
-perform_paddleocr(image_path)
+detect_document_text(image_path)
 ```
 
-### Advanced Deep Learning Models
+### 3. **Microsoft Azure Cognitive Services**
+Azure's Computer Vision API provides advanced OCR capabilities, including structured data extraction from forms and tables.
 
-For more custom and potentially higher accuracy solutions, you can build an OCR system using deep learning models like CRNN (Convolutional Recurrent Neural Network) or Transformer-based models.
-
-#### Using a Pre-trained CRNN Model
-
-You can use a pre-trained CRNN model available in the `deep-text-recognition-benchmark` repository:
-
-1. **Clone the Repository**
-
+**Installation:**
 ```bash
-git clone https://github.com/clovaai/deep-text-recognition-benchmark
-cd deep-text-recognition-benchmark
-pip install -r requirements.txt
+pip install azure-cognitiveservices-vision-computervision
 ```
 
-2. **Download Pre-trained Model**
-
-```bash
-# Assuming you are in the cloned repository's directory
-wget https://github.com/clovaai/deep-text-recognition-benchmark/releases/download/1.0/best_accuracy.pth
-```
-
-3. **Inference Script**
-
+**Usage:**
 ```python
-import torch
-from torchvision import transforms
-from PIL import Image
-import string
-import argparse
-import json
+from azure.cognitiveservices.vision.computervision import ComputerVisionClient
+from azure.cognitiveservices.vision.computervision.models import OperationStatusCodes
+from msrest.authentication import CognitiveServicesCredentials
+import time
 
-# Define the character set
-characters = string.ascii_letters + string.digits
+def azure_ocr(image_path):
+    subscription_key = "your_subscription_key"
+    endpoint = "your_endpoint"
+    
+    client = ComputerVisionClient(endpoint, CognitiveServicesCredentials(subscription_key))
 
-# Define the transformation
-transform = transforms.Compose([
-    transforms.Resize((32, 100)),
-    transforms.ToTensor(),
-    transforms.Normalize((0.5,), (0.5,))
-])
-
-# Load the pre-trained model
-model_path = 'best_accuracy.pth'
-model = torch.load(model_path)
-model.eval()
-
-def recognize_text(image_path):
-    image = Image.open(image_path).convert('L')
-    image = transform(image).unsqueeze(0)
-
-    with torch.no_grad():
-        preds = model(image)
-
-    _, preds_index = preds.max(2)
-    preds_str = ''.join([characters[i] for i in preds_index])
-    print(f'Recognized Text: {preds_str}')
+    with open(image_path, "rb") as image_stream:
+        read_response = client.read_in_stream(image_stream, raw=True)
+    
+    read_operation_location = read_response.headers["Operation-Location"]
+    operation_id = read_operation_location.split("/")[-1]
+    
+    while True:
+        read_result = client.get_read_result(operation_id)
+        if read_result.status not in [OperationStatusCodes.running, OperationStatusCodes.not_started]:
+            break
+        time.sleep(1)
+    
+    if read_result.status == OperationStatusCodes.succeeded:
+        for text_result in read_result.analyze_result.read_results:
+            for line in text_result.lines:
+                print(f"Detected text: {line.text}")
 
 image_path = 'path_to_your_image.jpg'
-recognize_text(image_path)
+azure_ocr(image_path)
 ```
 
 ### Summary
 
-For the highest accuracy in OCR:
-1. **PaddleOCR**: An efficient and accurate OCR tool.
-2. **Advanced Deep Learning Models**: Using pre-trained CRNN models or Transformer-based models.
+1. **AWS Textract**: Specialized in extracting text, forms, and tables from scanned documents.
+2. **Google Cloud Vision**: Advanced text detection, including handwriting and structured data.
+3. **Microsoft Azure Cognitive Services**: Provides robust OCR capabilities with structured data extraction.
 
-By leveraging these powerful tools, you can significantly improve the accuracy of your OCR system.
+These cloud-based solutions typically offer the highest accuracy and can handle complex documents with numbers and tables effectively. They require setting up API keys and endpoints but provide powerful capabilities beyond local libraries.
