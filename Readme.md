@@ -1,103 +1,84 @@
-To run the entire receipt parsing project using PaddleOCR for OCR, spaCy for NER, and Python scripts to manage preprocessing, training, and parsing, follow these steps:
+Thanks for clarifying the structure of your training data. Based on your description, the training data contains image names and corresponding entities. Let's adjust the process and the `train_ner.py` script to accommodate this structure.
 
-### Prerequisites
+### Revised Process and Training Script
 
-1. **Environment Setup**:
-   - Ensure you have Python installed (preferably Python 3.6 or higher).
-   - Set up a virtual environment (optional but recommended).
+#### Step 1: Annotate Receipts
+- Use LabelImg or a similar tool to annotate receipts.
+- Save annotations in XML format.
 
-2. **Install Dependencies**:
-   - Install required Python packages using `pip` from the `requirements.txt` file provided in your project directory.
-     ```bash
-     pip install -r requirements.txt
-     ```
-   - Additionally, download the spaCy English model using:
-     ```bash
-     python -m spacy download en_core_web_sm
-     ```
+#### Step 2: Convert Annotations to JSON
+- Use `utils.py` to convert XML annotations to a JSON format compatible with spaCy.
 
-3. **Prepare Receipt Images**:
-   - Place your receipt images in a directory (`data/receipt_images/` or as per your structure).
+### Example JSON Structure
 
-4. **Annotation**:
-   - Use a tool like LabelImg to annotate your receipt images for entities like `DATE`, `TOTAL`, `ITEM`, `PRICE`, `TAX`, etc., and save annotations in Pascal VOC format.
+Let's assume `train_data.json` looks like this:
 
-### Running the Project
-
-Here’s how to run each part of the project:
-
-#### 1. Preprocessing Receipt Images
-
-Run the preprocessing script to prepare receipt images for OCR:
-
-```bash
-python scripts/preprocess.py
+```json
+[
+    {
+        "image_name": "receipt1.jpg",
+        "entities": [
+            [0, 7, "MERCHANT_NAME"],
+            [8, 36, "MERCHANT_ADDRESS"],
+            [48, 58, "DATE"],
+            [66, 73, "TOTAL"]
+        ]
+    },
+    // More annotated receipts
+]
 ```
 
-This script preprocesses images by converting them to grayscale and applying thresholding to enhance text visibility.
+### Updated `utils.py` for Conversion
 
-#### 2. Performing OCR Using PaddleOCR
+```python
+import json
+import os
+from xml.etree import ElementTree as ET
 
-Run the OCR script to extract text from preprocessed receipt images:
+def convert_xml_to_json(xml_dir, output_json_path):
+    training_data = []
+    for xml_file in os.listdir(xml_dir):
+        if xml_file.endswith(".xml"):
+            tree = ET.parse(os.path.join(xml_dir, xml_file))
+            root = tree.getroot()
 
-```bash
-python scripts/ocr.py
+            image_name = root.find("filename").text
+            entities = []
+
+            for obj in root.findall("object"):
+                entity = obj.find("name").text
+                bndbox = obj.find("bndbox")
+                xmin = int(bndbox.find("xmin").text)
+                ymin = int(bndbox.find("ymin").text)
+                xmax = int(bndbox.find("xmax").text)
+                ymax = int(bndbox.find("ymax").text)
+
+                entities.append([xmin, ymin, xmax, ymax, entity])
+
+            training_data.append({"image_name": image_name, "entities": entities})
+
+    with open(output_json_path, "w") as f:
+        json.dump(training_data, f, indent=4)
+
+# Example usage
+convert_xml_to_json("annotations/", "train_data.json")
 ```
 
-This script uses PaddleOCR to perform Optical Character Recognition on preprocessed images. Adjust configurations in `ocr.py` as needed, such as language (`lang='en'`), OCR confidence thresholds, etc.
-
-#### 3. Converting Annotations to spaCy Format
-
-Convert annotations from Pascal VOC format to spaCy-compatible JSON format:
-
-```bash
-python utils.py
-```
-
-This script converts annotations (`annotations/annotations.xml`) to JSON format (`annotations/train_data.json`) used for training the spaCy NER model.
-
-#### 4. Training the NER Model
-
-Train the spaCy NER model using the converted annotations:
-
-```bash
-python scripts/train_ner.py
-```
-
-This script trains a custom NER model using spaCy on the annotated data (`train_data.json`). Adjust training iterations (`itn`), dropout (`drop`), and other parameters as needed in `train_ner.py`.
-
-#### 5. Parsing Receipts
-
-Parse receipt information using the trained OCR and NER components:
-
-```bash
-python scripts/parse_receipt.py
-```
-
-This script performs OCR on receipt images (`ocr.py`) and then applies the trained spaCy NER model (`ner_model_path`) to extract structured information (`parse_receipt.py`). Customize `parse_receipt.py` to structure output JSON (`result_json`) according to your requirements.
-
-### Example Customization
-
-- **Modify Scripts**: Edit scripts (`ocr.py`, `parse_receipt.py`, etc.) to adjust configurations, paths, and output formats based on your specific needs.
-  
-- **Extend Annotations**: Add more annotations (`annotations.xml`) and update training data (`train_data.json`) to include additional receipt fields like `TAX`, `PAYMENT_METHOD`, etc.
-
-### Workflow Tips
-
-- **Validation**: Validate each step with sample data to ensure accuracy and adjust parameters (`thresholds`, `training iterations`, etc.) as necessary.
-  
-- **Iterative Refinement**: Iterate on annotations, model training, and script adjustments based on testing results and feedback.
-
-By following these steps, you can effectively run and manage your receipt parsing project using PaddleOCR for OCR, spaCy for NER, and Python scripts for preprocessing, training, and parsing, tailored to extract structured information from receipt images. Adjustments and refinements during testing will help optimize accuracy and performance for your specific application requirements.
-I apologize for the oversight. SpaCy's API has indeed changed, and the `add_pipe` method now takes the string name of the registered component factory. Here’s how you can update the script to conform to the latest spaCy API:
-
-### Updated Training Script (`train_ner.py`)
+### Updated `train_ner.py`
 
 ```python
 import spacy
 import random
 import json
+import cv2
 from spacy.training import Example
+
+def get_text_from_image(image_path):
+    # Load image and apply OCR (PaddleOCR or any other OCR)
+    # Here we use a placeholder for OCR result
+    # In a real implementation, you would call PaddleOCR and get the text
+    text = "Walmart 1317 N MAIN ST STE A1, SUMMERVILLE SC 29483 Date: 2023-05-15 Total: $123.45 Items: Item1, Item2"
+    return text
 
 # Load spaCy English model with blank pipeline
 nlp = spacy.blank("en")
@@ -110,8 +91,8 @@ with open("train_data.json", "r") as f:
     train_data = json.load(f)
 
 # Add labels to the NER component
-for _, annotations in train_data:
-    for ent in annotations.get("entities"):
+for entry in train_data:
+    for ent in entry['entities']:
         ner.add_label(ent[4])
 
 # Initialize the optimizer
@@ -123,9 +104,15 @@ for itn in range(10):  # Example: Train for 10 iterations
     losses = {}
 
     # Create examples and update the model
-    for text, annotations in train_data:
+    for entry in train_data:
+        image_path = entry['image_name']
+        text = get_text_from_image(image_path)
+        
+        annotations = {"entities": [(ent[0], ent[1], ent[2], ent[3], ent[4]) for ent in entry['entities']]}
+        entities = [(ent[0], ent[1], ent[4]) for ent in entry['entities']]  # Adjusted for spaCy format
+        
         doc = nlp.make_doc(text)
-        example = Example.from_dict(doc, annotations)
+        example = Example.from_dict(doc, {"entities": entities})
         nlp.update([example], drop=0.5, sgd=optimizer, losses=losses)
 
     print(f"Iteration {itn+1}: Losses - {losses}")
@@ -134,72 +121,45 @@ for itn in range(10):  # Example: Train for 10 iterations
 nlp.to_disk("trained_ner_model")
 
 # Example usage: Test the trained model
-test_text = "Date: 2023-05-15 Total: $123.45 Items: Item1, Item2"
+test_text = "Walmart 1317 N MAIN ST STE A1, SUMMERVILLE SC 29483 Date: 2023-05-15 Total: $123.45 Items: Item1, Item2"
 doc = nlp(test_text)
 print("Entities:", [(ent.text, ent.label_) for ent in doc.ents])
 ```
 
-### Explanation of Changes
+### Explanation
 
-1. **Adding the NER Component**:
-   ```python
-   ner = nlp.add_pipe("ner")
-   ```
-   The `add_pipe` method now takes the string name of the component, which is `"ner"` for Named Entity Recognition.
+1. **Loading Training Data**:
+   - The training data is loaded from `train_data.json`.
+   - Each entry contains `image_name` and `entities`.
 
-2. **Initializing the Optimizer**:
-   ```python
-   optimizer = nlp.begin_training()
-   ```
-   This method initializes the optimizer for the NER component.
+2. **Getting Text from Image**:
+   - The function `get_text_from_image(image_path)` is a placeholder for the actual OCR process using PaddleOCR.
+   - Replace the placeholder with actual PaddleOCR code to extract text from images.
 
-### Steps to Run the Whole Project
+3. **Adding Labels**:
+   - Loop through entities and add labels to the NER component.
 
-1. **Data Annotation**:
-   - Annotate your receipt images using a tool like LabelImg and convert the annotations to a JSON format that spaCy can use for training.
+4. **Training the Model**:
+   - Shuffle the training data at the start of each iteration.
+   - Create examples using `Example.from_dict(doc, {"entities": entities})` and update the model with these examples.
 
-2. **Convert Annotations to JSON**:
-   - Use the provided `utils.py` script to convert XML annotations to spaCy JSON format.
+5. **Saving and Testing the Model**:
+   - Save the trained model to disk.
+   - Test the model with a sample text.
 
-3. **Prepare Training Data**:
-   - Ensure your training data is in a format similar to:
-     ```json
-     [
-         {
-             "text": "receipt1.jpg",
-             "entities": [
-                 [100, 50, 200, 70, "DATE"],
-                 [150, 120, 250, 140, "TOTAL"]
-                 // Other entities
-             ]
-         },
-         // More annotated receipts
-     ]
-     ```
+### Running the Project
 
-4. **Train the NER Model**:
-   - Run the updated `train_ner.py` script to train your NER model using the prepared JSON data.
+1. **Annotate Multiple Receipts**:
+   - Annotate a diverse set of receipts to cover different formats.
 
-5. **Testing the Model**:
-   - Test the trained model on new receipt text to verify entity extraction accuracy.
+2. **Convert Annotations**:
+   - Use `utils.py` to convert the XML annotations to JSON.
 
-### Tips for Adding Multiple Receipts and Improving Accuracy
+3. **Train the Model**:
+   - Run the `train_ner.py` script to train the model with the annotated data.
 
-- **Increase Training Data**:
-  - Annotate more receipts to cover different formats, fonts, and layouts. Convert all annotated receipts into JSON format using `utils.py`.
+4. **Evaluate and Refine**:
+   - Test the model with new receipt texts.
+   - Continue refining the model by annotating more data and adjusting training parameters as needed.
 
-- **Diverse Examples**:
-  - Ensure your training dataset includes a diverse range of receipts to improve model generalization.
-
-- **Hyperparameter Tuning**:
-  - Experiment with different training iterations, dropout rates, and batch sizes to optimize performance.
-
-- **Model Evaluation**:
-  - Regularly evaluate your model using a validation set of annotated receipts to monitor performance and prevent overfitting.
-for data in train_data:
-        text = data['text']
-        annotations = {"entities": [(ent[0], ent[1], ent[2]) for ent in data['entities']]}
-        doc = nlp.make_doc(text)
-        example = Example.from_dict(doc, annotations)
-        nlp.update([example], drop=0.5, sgd=opti
-- **
+By following these steps and ensuring the training data and script are correctly aligned, you should be able to train a robust NER model for receipt parsing using spaCy and PaddleOCR. If you encounter any issues or errors, please provide specific error messages and context for further assistance.
