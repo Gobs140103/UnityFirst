@@ -196,9 +196,10 @@ print("Entities:", [(ent.text, ent.label_) for ent in doc.ents])
 
 - **Model Evaluation**:
   - Regularly evaluate your model using a validation set of annotated receipts to monitor performance and prevent overfitting.
-
-- **Incremental Training**:
-  - Continue training your model incrementally as you collect more annotated receipts, refining annotations based on model errors.
-
-By following these steps and regularly refining your dataset and model parameters, you can build a robust receipt parsing system that accurately extracts structured information from a wide variety of receipts.
-
+for data in train_data:
+        text = data['text']
+        annotations = {"entities": [(ent[0], ent[1], ent[2]) for ent in data['entities']]}
+        doc = nlp.make_doc(text)
+        example = Example.from_dict(doc, annotations)
+        nlp.update([example], drop=0.5, sgd=opti
+- **
