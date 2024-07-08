@@ -162,4 +162,131 @@ print("Entities:", [(ent.text, ent.label_) for ent in doc.ents])
    - Test the model with new receipt texts.
    - Continue refining the model by annotating more data and adjusting training parameters as needed.
 
-By following these steps and ensuring the training data and script are correctly aligned, you should be able to train a robust NER model for receipt parsing using spaCy and PaddleOCR. If you encounter any issues or errors, please provide specific error messages and context for further assistance.
+By following these steps and ensuring the training data and script are correctly aligned, you should be able to train a robust NER model for receipt parsing using spaCy and PaddleOCR. If you encounter any issues or errors, please provide specific error messages and 
+To get text from an image using PaddleOCR, you'll need to install PaddleOCR and use it to process the images. Below are the steps and a complete example of integrating PaddleOCR into the receipt parsing project.
+
+### Step-by-Step Guide
+
+1. **Install PaddleOCR**:
+    - First, you need to install PaddleOCR and its dependencies. You can do this using pip:
+      ```sh
+      pip install paddlepaddle paddleocr
+      ```
+
+2. **Integrate PaddleOCR in the Project**:
+    - Use PaddleOCR to extract text from images within the `get_text_from_image` function.
+
+### Example Code
+
+#### `get_text_from_image` Function with PaddleOCR
+
+```python
+from paddleocr import PaddleOCR
+
+# Initialize PaddleOCR
+ocr = PaddleOCR(use_angle_cls=True, lang='en')
+
+def get_text_from_image(image_path):
+    # Run OCR on the image
+    result = ocr.ocr(image_path, cls=True)
+    
+    # Extract text from the OCR result
+    text_lines = []
+    for line in result:
+        for res in line:
+            text_lines.append(res[1][0])  # res[1][0] contains the recognized text
+
+    # Join all text lines into a single string
+    text = '\n'.join(text_lines)
+    return text
+
+# Example usage
+image_path = "path_to_your_receipt_image.jpg"
+text = get_text_from_image(image_path)
+print("Extracted Text:", text)
+```
+
+#### Updated `train_ner.py` Script
+
+Here’s the updated training script incorporating PaddleOCR:
+
+```python
+import spacy
+import random
+import json
+from spacy.training import Example
+from paddleocr import PaddleOCR
+
+# Initialize PaddleOCR
+ocr = PaddleOCR(use_angle_cls=True, lang='en')
+
+def get_text_from_image(image_path):
+    # Run OCR on the image
+    result = ocr.ocr(image_path, cls=True)
+    
+    # Extract text from the OCR result
+    text_lines = []
+    for line in result:
+        for res in line:
+            text_lines.append(res[1][0])  # res[1][0] contains the recognized text
+
+    # Join all text lines into a single string
+    text = '\n'.join(text_lines)
+    return text
+
+# Load spaCy English model with blank pipeline
+nlp = spacy.blank("en")
+
+# Add NER component to the pipeline using the string name
+ner = nlp.add_pipe("ner")
+
+# Load your training data from JSON
+with open("train_data.json", "r") as f:
+    train_data = json.load(f)
+
+# Add labels to the NER component
+for entry in train_data:
+    for ent in entry['entities']:
+        ner.add_label(ent[4])
+
+# Initialize the optimizer
+optimizer = nlp.begin_training()
+
+# Train the NER model
+for itn in range(10):  # Example: Train for 10 iterations
+    random.shuffle(train_data)
+    losses = {}
+
+    # Create examples and update the model
+    for entry in train_data:
+        image_path = entry['image_name']
+        text = get_text_from_image(image_path)
+        
+        annotations = {"entities": [(ent[0], ent[1], ent[2], ent[3], ent[4]) for ent in entry['entities']]}
+        entities = [(ent[0], ent[1], ent[4]) for ent in entry['entities']]  # Adjusted for spaCy format
+        
+        doc = nlp.make_doc(text)
+        example = Example.from_dict(doc, {"entities": entities})
+        nlp.update([example], drop=0.5, sgd=optimizer, losses=losses)
+
+    print(f"Iteration {itn+1}: Losses - {losses}")
+
+# Save the trained model
+nlp.to_disk("trained_ner_model")
+
+# Example usage: Test the trained model
+test_image_path = "path_to_test_receipt_image.jpg"
+test_text = get_text_from_image(test_image_path)
+doc = nlp(test_text)
+print("Entities:", [(ent.text, ent.label_) for ent in doc.ents])
+```
+
+### Explanation
+
+1. **Initialize PaddleOCR**:
+    - `PaddleOCR(use_angle_cls=True, lang='en')` initializes PaddleOCR with English language support and angle classification enabled.
+
+2. **Extract Text**:
+    - `result = ocr.ocr(image_path, cls=True)` processes the image
+
+context for further assistance.
