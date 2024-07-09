@@ -1,116 +1,105 @@
-To ensure that the "TOTAL" entity is linked only to the numerical value and currency symbol (e.g., "$45.67") without including the label "Total:", you can refine the matching patterns. Here's an updated approach to achieve this:
+Sure, let's create a simple in-memory table within Python and demonstrate various CRUD (Create, Read, Update, Delete) operations on it. We'll use a dictionary to simulate the table. Here's how you can set it up:
 
-### Step 1: Install Required Libraries
-Ensure you have spaCy installed:
-```bash
-pip install spacy
-```
+### Step 1: Set Up the Python Backend with In-Memory Table
 
-### Step 2: Load SpaCy Model
-Load a pre-trained spaCy model for processing the text:
-```python
-import spacy
+1. **Create a Flask App**:
+    Create a file `app.py` and add the following code:
 
-# Load the spaCy model
-nlp = spacy.load("en_core_web_sm")
-```
+    ```python
+    from flask import Flask, request, jsonify
+    from flask_cors import CORS
 
-### Step 3: Create a PhraseMatcher for Merchant Names
-Let's say you have a predefined list of merchant names:
-```python
-# Predefined dataset of merchant names
-merchant_names = ["Walmart", "Target", "Costco", "Amazon"]
-```
+    app = Flask(__name__)
+    CORS(app)
 
-### Step 4: Define Patterns for Other Entities
-Define patterns to match entities like tax, total, and address:
-```python
-from spacy.matcher import Matcher, PhraseMatcher
+    # Simulate an in-memory table using a dictionary
+    table = {}
+    current_id = 1
 
-# Initialize the Matcher and PhraseMatcher
-matcher = Matcher(nlp.vocab)
-phrase_matcher = PhraseMatcher(nlp.vocab)
+    # Function to create a new record
+    @app.route('/create', methods=['POST'])
+    def create_record():
+        global current_id
+        data = request.json
+        record = {
+            'id': current_id,
+            'name': data['name'],
+            'email': data['email']
+        }
+        table[current_id] = record
+        current_id += 1
+        return jsonify(record), 201
 
-# Create patterns for the PhraseMatcher
-merchant_patterns = [nlp.make_doc(name) for name in merchant_names]
-phrase_matcher.add("MERCHANT_NAME", None, *merchant_patterns)
+    # Function to read all records
+    @app.route('/read', methods=['GET'])
+    def read_records():
+        return jsonify(list(table.values())), 200
 
-# Define patterns for other entities
-patterns = {
-    "TOTAL": [{"LOWER": "total"}, {"IS_PUNCT": True, "OP": "?"}, {"IS_DIGIT": True, "OP": "*"}, {"IS_CURRENCY": True, "OP": "?"}, {"LIKE_NUM": True}],
-    "TAX": [{"LOWER": "tax"}, {"IS_PUNCT": True, "OP": "?"}, {"IS_DIGIT": True, "OP": "*"}, {"IS_CURRENCY": True, "OP": "?"}, {"LIKE_NUM": True}],
-    "ADDRESS": [{"ENT_TYPE": "GPE"}, {"IS_DIGIT": True}, {"IS_ALPHA": True, "OP": "+"}]
-}
+    # Function to update a record
+    @app.route('/update/<int:record_id>', methods=['PUT'])
+    def update_record(record_id):
+        if record_id not in table:
+            return jsonify({'error': 'Record not found'}), 404
 
-# Add patterns to the Matcher
-for label, pattern in patterns.items():
-    matcher.add(label, [pattern])
-```
+        data = request.json
+        record = table[record_id]
+        record['name'] = data.get('name', record['name'])
+        record['email'] = data.get('email', record['email'])
+        return jsonify(record), 200
 
-### Step 5: Process the Receipt Text and Apply Matchers
-Let's use a sample receipt text:
-```python
-# Define the receipt text (replace this with your OCR output)
-receipt_text = """
-Walmart
-1234 Market St
-San Francisco, CA 94103
-Date: 2024-07-08
-Total: $45.67
-Tax: $3.45
-"""
+    # Function to delete a record
+    @app.route('/delete/<int:record_id>', methods=['DELETE'])
+    def delete_record(record_id):
+        if record_id not in table:
+            return jsonify({'error': 'Record not found'}), 404
 
-# Process the receipt text with spaCy
-doc = nlp(receipt_text)
+        del table[record_id]
+        return jsonify({'message': 'Record deleted'}), 200
 
-# Apply the PhraseMatcher to the doc
-phrase_matches = phrase_matcher(doc)
+    if __name__ == '__main__':
+        app.run(debug=True)
+    ```
 
-# Apply the Matcher to the doc
-matches = matcher(doc)
+### Step 2: Test the API with Postman
 
-# Initialize a dictionary to store entities
-entities = {
-    "MERCHANT_NAME": [],
-    "ADDRESS": [],
-    "TOTAL": [],
-    "TAX": []
-}
+1. **Run the Flask App**:
+    ```sh
+    python app.py
+    ```
 
-# Iterate over phrase matches and extract entities
-for match_id, start, end in phrase_matches:
-    match_label = nlp.vocab.strings[match_id]  # Get the string representation of the label
-    span = doc[start:end]  # The matched span
-    entities[match_label].append(span.text)  # Add the matched text to the corresponding entity list
+2. **Test the API Endpoints with Postman**:
+    - **Create a Record**:
+        - Method: `POST`
+        - URL: `http://127.0.0.1:5000/create`
+        - Body: `raw` JSON
+        ```json
+        {
+            "name": "John Doe",
+            "email": "john@example.com"
+        }
+        ```
+    - **Read All Records**:
+        - Method: `GET`
+        - URL: `http://127.0.0.1:5000/read`
 
-# Iterate over token matches and extract entities
-for match_id, start, end in matches:
-    match_label = nlp.vocab.strings[match_id]  # Get the string representation of the label
-    span = doc[start:end]  # The matched span
-    
-    # Filter out the numerical value and currency symbol for TOTAL and TAX
-    if match_label in ["TOTAL", "TAX"]:
-        # Only append the value (e.g., "$45.67" or "$3.45")
-        value = span[-1].text  # Get the last token which is the value
-        entities[match_label].append(value)
-    else:
-        entities[match_label].append(span.text)  # Add the matched text to the corresponding entity list
+    - **Update a Record**:
+        - Method: `PUT`
+        - URL: `http://127.0.0.1:5000/update/1`
+        - Body: `raw` JSON
+        ```json
+        {
+            "name": "Jane Doe",
+            "email": "jane@example.com"
+        }
+        ```
 
-# Print the extracted entities
-for entity, values in entities.items():
-    print(f"{entity}: {', '.join(values)}")
-```
+    - **Delete a Record**:
+        - Method: `DELETE`
+        - URL: `http://127.0.0.1:5000/delete/1`
 
-### Explanation of Changes:
-1. **Patterns for TOTAL and TAX**: The patterns for "TOTAL" and "TAX" have been updated to ensure they match the numerical value and currency symbol.
-2. **Filter out Numerical Values**: When iterating over matches, for "TOTAL" and "TAX" entities, only the last token (which should be the value) is appended to the `entities` dictionary.
+### Summary
+- Set up a Flask backend with an in-memory table using a dictionary.
+- Create CRUD endpoints to interact with the table.
+- Use Postman to test the API endpoints.
 
-### Expected Output:
-```plaintext
-MERCHANT_NAME: Walmart
-ADDRESS: 1234 Market St
-TOTAL: $45.67
-TAX: $3.45
-```
-
-This script ensures that the "TOTAL" and "TAX" entities are linked only to the numerical values and currency symbols, excluding any preceding labels like "Total:" or "Tax:". Adjust the patterns as needed based on the format of your OCR output.
+This approach provides a clear demonstration of basic CRUD operations using a simple in-memory data structure.
