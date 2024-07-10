@@ -1,106 +1,168 @@
 
-To create two different endpoints—one for posting an array of numbers to get the maximum value (`POST /max`) and one for getting a predefined response (`GET /max`)—you can extend the Flask application as follows:
 
-### Flask Application
+To convert this HTML structure to React, we'll break it down into steps:
 
-1. **Install Flask** if you haven't already:
-   ```bash
-   pip install flask
-   ```
+1. **Set Up React Environment**:
+   - Ensure you have Node.js and npm installed.
+   - Create a new React app using `create-react-app`.
 
-2. **Create a Flask Application**:
-   Create a file named `app.py` and add the following code:
+2. **Convert HTML to JSX**:
+   - JSX syntax is slightly different from HTML. You'll need to make a few changes, such as using `className` instead of `class`.
 
-   ```python
-   from flask import Flask, request, jsonify
+3. **Include CSS and JS Files**:
+   - Import your CSS files in the React components.
+   - Include your JS logic in the appropriate React lifecycle methods or use React hooks.
 
-   app = Flask(__name__)
+### Step-by-Step Conversion
 
-   # POST endpoint to get the max value from an array of numbers
-   @app.route('/max', methods=['POST'])
-   def get_max_value():
-       data = request.get_json()
-       numbers = data.get('numbers')
-       if not numbers or not all(isinstance(n, (int, float)) for n in numbers):
-           return jsonify({'error': 'Invalid input, please provide a list of numbers.'}), 400
-       
-       max_value = max(numbers)
-       return jsonify({'max_value': max_value})
+#### Step 1: Set Up React Environment
 
-   # GET endpoint to return a predefined response
-   @app.route('/max', methods=['GET'])
-   def predefined_response():
-       return jsonify({'message': 'Send a POST request with an array of numbers to get the maximum value.'})
+Open your terminal and run:
 
-   if __name__ == '__main__':
-       app.run(debug=True)
-   ```
+```bash
+npx create-react-app chatbot
+cd chatbot
+npm start
+```
 
-3. **Run Your Flask Application**:
-   ```bash
-   python app.py
-   ```
+#### Step 2: Convert HTML to JSX
 
-### Configuring Postman
+Create a new component for the ChatBot. Inside your `src` folder, create a file called `ChatBot.js`.
 
-#### For the POST request:
+**ChatBot.js**:
 
-1. **Open Postman** and create a new POST request.
+```jsx
+import React from 'react';
+import './style.css';
+import './materialize.min.css';
 
-2. **Set the URL** to your local Flask server (e.g., `http://127.0.0.1:5000/max`).
+const ChatBot = () => {
+  return (
+    <div className="container">
+      <div className="widget">
+        <div className="chat_header">
+          <span style={{color: 'white', marginLeft: '5px'}}>ChatBot </span>
+          <span style={{color: 'white', marginRight: '5px', float: 'right', marginTop: '5px'}} id="close">
+            <i className="material-icons">close</i>
+          </span>
+        </div>
+        <div className="chats" id="chats">
+          <div className="clearfix"></div>
+        </div>
+        <div className="keypad">
+          <input type="text" id="keypad" className="usrInput browser-default" placeholder="Type a message..." autoComplete="off" />
+        </div>
+      </div>
+      <div className="profile_div" id="profile_div">
+        <img className="imgProfile" src="static/img/botAvatar.png" alt="ChatBot Avatar" />
+      </div>
+    </div>
+  );
+};
 
-3. **Set the request type** to POST.
+export default ChatBot;
+```
 
-4. **Set the Headers**:
-   Add a header to indicate that you're sending JSON data:
-   - Key: `Content-Type`
-   - Value: `application/json`
+#### Step 3: Include CSS Files
 
-5. **Set the Body**:
-   Select the "raw" option and choose "JSON" from the dropdown. Enter a JSON array of numbers, for example:
+Place your `style.css` and `materialize.min.css` files in the `src` directory.
 
-   ```json
-   {
-       "numbers": [1, 2, 3, 4, 5]
-   }
-   ```
+#### Step 4: Add JavaScript Logic
 
-6. **Send the Request** by clicking the "Send" button in Postman.
+React uses state and lifecycle methods (or hooks) to manage JavaScript logic. Let's assume your `script.js` contains some basic initialization code.
 
-7. **View the Response**. You should receive a JSON response with the maximum value from the array you sent:
+Create a new file called `useChatBot.js` to handle any custom hooks:
 
-   ```json
-   {
-       "max_value": 5
-   }
-   ```
+**useChatBot.js**:
 
-#### For the GET request:
+```jsx
+import { useEffect } from 'react';
 
-1. **Open Postman** and create a new GET request.
+const useChatBot = () => {
+  useEffect(() => {
+    // Your script.js logic here
+    const closeIcon = document.getElementById('close');
+    closeIcon.addEventListener('click', () => {
+      // Close chat logic
+    });
 
-2. **Set the URL** to your local Flask server (e.g., `http://127.0.0.1:5000/max`).
+    // Cleanup event listeners on unmount
+    return () => {
+      closeIcon.removeEventListener('click', () => {});
+    };
+  }, []);
+};
 
-3. **Set the request type** to GET.
+export default useChatBot;
+```
 
-4. **Send the Request** by clicking the "Send" button in Postman.
+In your `ChatBot.js`, use this hook:
 
-5. **View the Response**. You should receive a JSON response with a predefined message:
+```jsx
+import React from 'react';
+import './style.css';
+import './materialize.min.css';
+import useChatBot from './useChatBot';
 
-   ```json
-   {
-       "message": "Send a POST request with an array of numbers to get the maximum value."
-   }
-   ```
+const ChatBot = () => {
+  useChatBot();
 
-### Summary
+  return (
+    <div className="container">
+      <div className="widget">
+        <div className="chat_header">
+          <span style={{color: 'white', marginLeft: '5px'}}>ChatBot </span>
+          <span style={{color: 'white', marginRight: '5px', float: 'right', marginTop: '5px'}} id="close">
+            <i className="material-icons">close</i>
+          </span>
+        </div>
+        <div className="chats" id="chats">
+          <div className="clearfix"></div>
+        </div>
+        <div className="keypad">
+          <input type="text" id="keypad" className="usrInput browser-default" placeholder="Type a message..." autoComplete="off" />
+        </div>
+      </div>
+      <div className="profile_div" id="profile_div">
+        <img className="imgProfile" src="static/img/botAvatar.png" alt="ChatBot Avatar" />
+      </div>
+    </div>
+  );
+};
 
-- **Flask Server**: 
-  - `POST /max`: Accepts a JSON array of numbers, finds the maximum value, and returns it.
-  - `GET /max`: Returns a predefined message.
-  
-- **Postman**: 
-  - Use a POST request to send an array of numbers and get the maximum value.
-  - Use a GET request to receive a predefined response message.
+export default ChatBot;
+```
 
-This setup will allow you to handle both POST and GET requests for the `/max` endpoint with different functionalities.
+#### Step 5: Integrate the ChatBot Component
+
+Modify `App.js` to include the `ChatBot` component:
+
+**App.js**:
+
+```jsx
+import React from 'react';
+import './App.css';
+import ChatBot from './ChatBot';
+
+function App() {
+  return (
+    <div className="App">
+      <ChatBot />
+    </div>
+  );
+}
+
+export default App;
+```
+
+#### Step 6: Run Your React App
+
+Go back to your terminal and start the React app:
+
+```bash
+npm start
+```
+
+Your chatbot UI should now be rendered in the browser using React. 
+
+You can further enhance the functionality by integrating with your Rasa backend and managing state with hooks or context as needed.
