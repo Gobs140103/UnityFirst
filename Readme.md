@@ -1,210 +1,234 @@
-Here are some more cool ideas for enhancing your Rasa chatbot's user interface and functionality with attachments and interactive elements:
+Yes, you can load a pre-existing Excel file locally and serve it on a local host for download. This involves creating an endpoint in your backend that serves the local file, and then creating a link on the frontend to allow users to download it.
 
-### 1. **Image Attachment with Preview and Download**
+### Backend: Serve the Local Excel File
 
-Render image attachments with a thumbnail preview and a download option.
+Here is an example using Flask to serve a local Excel file:
+
+1. **Ensure Flask is installed:**
+
+   ```bash
+   pip install Flask
+   ```
+
+2. **Create a Flask application to serve the local Excel file:**
+
+   ```python
+   from flask import Flask, send_from_directory
+   import os
+
+   app = Flask(__name__)
+
+   # Directory where the Excel files are stored
+   EXCEL_DIRECTORY = os.path.join(os.getcwd(), 'excel_files')
+
+   @app.route('/download_excel/<filename>', methods=['GET'])
+   def download_excel(filename):
+       try:
+           return send_from_directory(EXCEL_DIRECTORY, filename, as_attachment=True)
+       except FileNotFoundError:
+           return "File not found", 404
+
+   if __name__ == "__main__":
+       app.run(debug=True)
+   ```
+
+### Frontend: Provide the Download Link
+
+Modify your JavaScript to create a download link for the Excel file:
 
 ```javascript
 /**
- * renders image attachment on to the chat screen
- * @param {Object} image_data json object
+ * Renders Excel file attachment on the chat screen and provides a download link
+ * @param {Object} excel_data JSON object
  */
-function renderImageAttachment(image_data) {
-    const { url: image_url } = image_data.custom;
-    const { title: image_title } = image_data.custom;
-    const image_attachment = `
-        <div class="image_attachment">
+function renderExcelAttachment(excel_data) {
+    const { url: excel_url } = excel_data.custom;
+    const { title: excel_title } = excel_data.custom;
+    const excel_attachment = `
+        <div class="excel_attachment">
             <div class="row">
-                <div class="col s3 image_icon">
-                    <img src="${image_url}" alt="${image_title}" class="thumbnail">
+                <div class="col s3 excel_icon">
+                    <i class="fa fa-file-excel-o" aria-hidden="true"></i>
                 </div>
-                <div class="col s9 image_link">
-                    <a href="${image_url}" target="_blank">${image_title}</a>
-                    <a href="${image_url}" download="${image_title}" class="download_button">
-                        <i class="fa fa-download" aria-hidden="true"></i> Download
+                <div class="col s9 excel_link">
+                    <a href="${excel_url}" download="${excel_title}" class="download_button">
+                        ${excel_title} <i class="fa fa-download" aria-hidden="true"></i>
                     </a>
                 </div>
             </div>
         </div>`;
 
-    $(".chats").append(image_attachment);
+    $(".chats").append(excel_attachment);
     scrollToBottomOfResults();
 }
-```
 
-### 2. **Video Attachment with Playback and Download**
-
-Embed a video player with playback controls and a download option.
-
-```javascript
-/**
- * renders video attachment on to the chat screen
- * @param {Object} video_data json object
- */
-function renderVideoAttachment(video_data) {
-    const { url: video_url } = video_data.custom;
-    const { title: video_title } = video_data.custom;
-    const video_attachment = `
-        <div class="video_attachment">
-            <div class="row">
-                <div class="col s3 video_icon">
-                    <i class="fa fa-file-video-o" aria-hidden="true"></i>
-                </div>
-                <div class="col s9 video_link">
-                    <video width="320" height="240" controls>
-                        <source src="${video_url}" type="video/mp4">
-                        Your browser does not support the video tag.
-                    </video>
-                    <a href="${video_url}" download="${video_title}" class="download_button">
-                        <i class="fa fa-download" aria-hidden="true"></i> Download
-                    </a>
-                </div>
-            </div>
-        </div>`;
-
-    $(".chats").append(video_attachment);
-    scrollToBottomOfResults();
-}
-```
-
-### 3. **Audio Attachment with Playback and Download**
-
-Embed an audio player with playback controls and a download option.
-
-```javascript
-/**
- * renders audio attachment on to the chat screen
- * @param {Object} audio_data json object
- */
-function renderAudioAttachment(audio_data) {
-    const { url: audio_url } = audio_data.custom;
-    const { title: audio_title } = audio_data.custom;
-    const audio_attachment = `
-        <div class="audio_attachment">
-            <div class="row">
-                <div class="col s3 audio_icon">
-                    <i class="fa fa-file-audio-o" aria-hidden="true"></i>
-                </div>
-                <div class="col s9 audio_link">
-                    <audio controls>
-                        <source src="${audio_url}" type="audio/mpeg">
-                        Your browser does not support the audio element.
-                    </audio>
-                    <a href="${audio_url}" download="${audio_title}" class="download_button">
-                        <i class="fa fa-download" aria-hidden="true"></i> Download
-                    </a>
-                </div>
-            </div>
-        </div>`;
-
-    $(".chats").append(audio_attachment);
-    scrollToBottomOfResults();
-}
-```
-
-### 4. **Interactive Forms**
-
-Embed interactive forms for user input directly within the chat interface.
-
-```javascript
-/**
- * renders a form attachment on to the chat screen
- * @param {Object} form_data json object
- */
-function renderFormAttachment(form_data) {
-    const { form_id, form_fields } = form_data.custom;
-    let form_fields_html = '';
-
-    form_fields.forEach(field => {
-        form_fields_html += `
-            <div class="input-field">
-                <label for="${field.name}">${field.label}</label>
-                <input type="${field.type}" id="${field.name}" name="${field.name}">
-            </div>`;
-    });
-
-    const form_attachment = `
-        <div class="form_attachment">
-            <form id="${form_id}">
-                ${form_fields_html}
-                <button type="submit" class="btn">Submit</button>
-            </form>
-        </div>`;
-
-    $(".chats").append(form_attachment);
-    scrollToBottomOfResults();
-
-    $(`#${form_id}`).on('submit', function(e) {
-        e.preventDefault();
-        const formData = $(this).serializeArray();
-        console.log(formData); // Handle form data submission
-    });
-}
-```
-
-### 5. **Interactive Charts**
-
-Render interactive charts using libraries like Chart.js or Google Charts.
-
-```javascript
-/**
- * renders chart attachment on to the chat screen
- * @param {Object} chart_data json object
- */
-function renderChartAttachment(chart_data) {
-    const { chart_id, chart_type, chart_labels, chart_datasets } = chart_data.custom;
-    const chart_attachment = `
-        <div class="chart_attachment">
-            <canvas id="${chart_id}"></canvas>
-        </div>`;
-
-    $(".chats").append(chart_attachment);
-    scrollToBottomOfResults();
-
-    const ctx = document.getElementById(chart_id).getContext('2d');
-    new Chart(ctx, {
-        type: chart_type,
-        data: {
-            labels: chart_labels,
-            datasets: chart_datasets
-        }
-    });
-}
-```
-
-### Example Usage for Interactive Charts:
-
-```javascript
-const chart_data = {
+// Example usage (this would be triggered by a message from the backend)
+renderExcelAttachment({
     custom: {
-        chart_id: "myChart",
-        chart_type: "bar",
-        chart_labels: ["Red", "Blue", "Yellow", "Green", "Purple", "Orange"],
-        chart_datasets: [{
-            label: '# of Votes',
-            data: [12, 19, 3, 5, 2, 3],
-            backgroundColor: [
-                'rgba(255, 99, 132, 0.2)',
-                'rgba(54, 162, 235, 0.2)',
-                'rgba(255, 206, 86, 0.2)',
-                'rgba(75, 192, 192, 0.2)',
-                'rgba(153, 102, 255, 0.2)',
-                'rgba(255, 159, 64, 0.2)'
-            ],
-            borderColor: [
-                'rgba(255, 99, 132, 1)',
-                'rgba(54, 162, 235, 1)',
-                'rgba(255, 206, 86, 1)',
-                'rgba(75, 192, 192, 1)',
-                'rgba(153, 102, 255, 1)',
-                'rgba(255, 159, 64, 1)'
-            ],
-            borderWidth: 1
-        }]
+        url: "http://localhost:5000/download_excel/yourfile.xlsx",
+        title: "Download Transactions"
     }
-};
-
-renderChartAttachment(chart_data);
+});
 ```
 
-These enhancements can make your Rasa chatbot more interactive and user-friendly, providing a richer experience for your users.
+### CSS for Styling
+
+Here is the improved CSS to style the Excel file attachment:
+
+```css
+/* Styling for the Excel file attachment */
+.excel_attachment {
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    padding: 10px;
+    margin: 10px 0;
+    background-color: #f9f9f9;
+    display: flex;
+    align-items: center;
+}
+
+.excel_icon {
+    color: #217346; /* Excel green color */
+    font-size: 2em;
+    text-align: center;
+}
+
+.excel_link {
+    margin-left: 10px;
+    display: flex;
+    flex-direction: column;
+}
+
+.excel_link a {
+    text-decoration: none;
+    color: #217346; /* Excel green color */
+    font-weight: bold;
+    margin-top: 5px;
+}
+
+.excel_link a:hover {
+    text-decoration: underline;
+}
+
+.download_button {
+    display: flex;
+    align-items: center;
+    color: #217346; /* Excel green color */
+}
+
+.download_button i {
+    margin-left: 5px;
+}
+```
+
+### Putting It All Together
+
+1. **Ensure the Excel files are stored in a directory called `excel_files` in the same directory as your Flask application.**
+
+2. **Run the Flask application:**
+
+   ```bash
+   python your_flask_app.py
+   ```
+
+3. **Ensure your HTML includes the necessary CSS and JavaScript:**
+
+   ```html
+   <!DOCTYPE html>
+   <html lang="en">
+   <head>
+       <meta charset="UTF-8">
+       <meta name="viewport" content="width=device-width, initial-scale=1.0">
+       <title>Chatbot</title>
+       <link rel="stylesheet" href="path/to/your/css/file.css">
+       <style>
+           /* Include the enhanced CSS here if not using an external file */
+           /* Styling for the Excel file attachment */
+           .excel_attachment {
+               border: 1px solid #ddd;
+               border-radius: 5px;
+               padding: 10px;
+               margin: 10px 0;
+               background-color: #f9f9f9;
+               display: flex;
+               align-items: center;
+           }
+
+           .excel_icon {
+               color: #217346; /* Excel green color */
+               font-size: 2em;
+               text-align: center;
+           }
+
+           .excel_link {
+               margin-left: 10px;
+               display: flex;
+               flex-direction: column;
+           }
+
+           .excel_link a {
+               text-decoration: none;
+               color: #217346; /* Excel green color */
+               font-weight: bold;
+               margin-top: 5px;
+           }
+
+           .excel_link a:hover {
+               text-decoration: underline;
+           }
+
+           .download_button {
+               display: flex;
+               align-items: center;
+               color: #217346; /* Excel green color */
+           }
+
+           .download_button i {
+               margin-left: 5px;
+           }
+       </style>
+   </head>
+   <body>
+       <div class="chats"></div>
+
+       <script src="path/to/jquery.js"></script>
+       <script>
+           // Include the JavaScript function here or in an external JS file
+           /**
+            * Renders Excel file attachment on the chat screen and provides a download link
+            * @param {Object} excel_data JSON object
+            */
+           function renderExcelAttachment(excel_data) {
+               const { url: excel_url } = excel_data.custom;
+               const { title: excel_title } = excel_data.custom;
+               const excel_attachment = `
+                   <div class="excel_attachment">
+                       <div class="row">
+                           <div class="col s3 excel_icon">
+                               <i class="fa fa-file-excel-o" aria-hidden="true"></i>
+                           </div>
+                           <div class="col s9 excel_link">
+                               <a href="${excel_url}" download="${excel_title}" class="download_button">
+                                   ${excel_title} <i class="fa fa-download" aria-hidden="true"></i>
+                               </a>
+                           </div>
+                       </div>
+                   </div>`;
+
+               $(".chats").append(excel_attachment);
+               scrollToBottomOfResults();
+           }
+
+           // Example usage (this would be triggered by a message from the backend)
+           renderExcelAttachment({
+               custom: {
+                   url: "http://localhost:5000/download_excel/yourfile.xlsx",
+                   title: "Download Transactions"
+               }
+           });
+       </script>
+   </body>
+   </html>
+   ```
+
+This setup allows you to serve and download a local Excel file through your Flask application, providing a user-friendly way to access the file from your chatbot.
